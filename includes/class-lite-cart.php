@@ -19,6 +19,116 @@ class Lite_eCommerce_Cart {
 	 */
 	public static function init() {
 		add_action( 'template_redirect', array( __CLASS__, 'handle_cart_actions' ) );
+		add_action( 'wp_footer', array( __CLASS__, 'render_floating_cart_button' ) );
+	}
+
+	/**
+	 * Get total quantity of items in the cart.
+	 *
+	 * @return int Total item count.
+	 */
+	public static function get_item_count() {
+		$cart  = self::get_cart();
+		$count = 0;
+
+		foreach ( $cart as $item ) {
+			$count += intval( $item['quantity'] );
+		}
+
+		return $count;
+	}
+
+	/**
+	 * Render a site-wide floating cart button.
+	 *
+	 * Shows on every front-end page whenever the cart contains at least
+	 * one item, so it "activates" immediately after an add-to-cart
+	 * redirect completes.
+	 */
+	public static function render_floating_cart_button() {
+		if ( is_admin() ) {
+			return;
+		}
+
+		$count = self::get_item_count();
+		if ( $count < 1 ) {
+			return;
+		}
+
+		$cart_page_id = get_option( 'lite_cart_page' );
+		if ( $cart_page_id ) {
+			$cart_url = get_permalink( $cart_page_id );
+		} else {
+			$checkout_page_id = get_option( 'lite_checkout_page' );
+			$cart_url         = $checkout_page_id ? get_permalink( $checkout_page_id ) : home_url( '/cart/' );
+		}
+
+		$total = Lite_eCommerce_Cart::get_total();
+		?>
+		<style>
+			.lite-floating-cart {
+				position: fixed;
+				bottom: 24px;
+				right: 24px;
+				z-index: 999999;
+				display: inline-flex;
+				align-items: center;
+				gap: 10px;
+				background: #6c5ce7;
+				color: #fff;
+				padding: 14px 20px;
+				border-radius: 999px;
+				box-shadow: 0 6px 20px rgba(0,0,0,.2);
+				text-decoration: none;
+				font-family: 'Inter', system-ui, sans-serif;
+				font-weight: 600;
+				font-size: 15px;
+				line-height: 1;
+				transition: transform 0.2s, box-shadow 0.2s;
+			}
+			.lite-floating-cart:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 8px 24px rgba(0,0,0,.28);
+				color: #fff;
+			}
+			.lite-floating-cart svg {
+				display: block;
+			}
+			.lite-floating-cart-count {
+				background: #fff;
+				color: #6c5ce7;
+				border-radius: 999px;
+				min-width: 20px;
+				height: 20px;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				font-size: 12px;
+				font-weight: 700;
+				padding: 0 5px;
+			}
+			.lite-floating-cart-total {
+				opacity: 0.9;
+			}
+			@media (max-width: 480px) {
+				.lite-floating-cart {
+					bottom: 16px;
+					right: 16px;
+					padding: 12px 16px;
+					font-size: 14px;
+				}
+			}
+		</style>
+		<a href="<?php echo esc_url( $cart_url ); ?>" class="lite-floating-cart" aria-label="<?php esc_attr_e( 'View cart', 'bluu-lite-ecommerce' ); ?>">
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="9" cy="21" r="1"></circle>
+				<circle cx="20" cy="21" r="1"></circle>
+				<path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+			</svg>
+			<span class="lite-floating-cart-count"><?php echo intval( $count ); ?></span>
+			<span class="lite-floating-cart-total">&pound;<?php echo esc_html( number_format( $total, 2 ) ); ?></span>
+		</a>
+		<?php
 	}
 
 	/**
