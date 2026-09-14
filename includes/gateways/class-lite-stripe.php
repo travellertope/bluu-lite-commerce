@@ -1,4 +1,4 @@
-for <?php
+<?php
 /**
  * Lite eCommerce Stripe Gateway
  */
