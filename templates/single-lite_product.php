@@ -511,18 +511,6 @@ while ( have_posts() ) :
 						</svg>
 						<?php esc_html_e( 'Secure checkout', 'bluu-lite-ecommerce' ); ?>
 					</div>
-					<div class="lite-trust-badge">
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M5 12h14M12 5l7 7-7 7"/>
-						</svg>
-						<?php esc_html_e( 'Instant delivery', 'bluu-lite-ecommerce' ); ?>
-					</div>
-					<div class="lite-trust-badge">
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<polyline points="20 6 9 17 4 12"/>
-						</svg>
-						<?php esc_html_e( 'Money-back guarantee', 'bluu-lite-ecommerce' ); ?>
-					</div>
 				</div>
 
 			</div><!-- /.lite-product-info -->
