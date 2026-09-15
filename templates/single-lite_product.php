@@ -431,7 +431,9 @@ while ( have_posts() ) :
 
 				<div class="lite-product-price-row">
 					<span class="lite-product-price">£<?php echo number_format( $lite_price, 2 ); ?></span>
-					<span class="lite-product-price-label"><?php esc_html_e( 'incl. VAT', 'bluu-lite-ecommerce' ); ?></span>
+					<?php if ( floatval( get_option( 'lite_vat_rate', 0 ) ) > 0 ) : ?>
+						<span class="lite-product-price-label"><?php esc_html_e( 'excl. VAT', 'bluu-lite-ecommerce' ); ?></span>
+					<?php endif; ?>
 				</div>
 
 				<!-- Form: Quantity + Add to Cart -->
