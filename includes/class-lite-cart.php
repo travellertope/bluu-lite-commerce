@@ -155,6 +155,7 @@ class Lite_eCommerce_Cart {
 			e.preventDefault();
 			submitViaAjax(form, 'lite_add_to_cart', function(data) {
 				updateFloatingCart(data.count, data.total, data.cart_url);
+				form.dispatchEvent(new CustomEvent('lite:added-to-cart', { bubbles: true, detail: data }));
 			});
 			return;
 		}

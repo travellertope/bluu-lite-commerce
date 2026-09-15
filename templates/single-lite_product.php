@@ -555,6 +555,9 @@ while ( have_posts() ) :
 		});
 
 		// Add-to-cart feedback toast
+		// Actual cart submission (and floating cart update) is handled by the
+		// single, site-wide AJAX handler registered in class-lite-cart.php.
+		// This just reacts to its result so we don't double-submit the form.
 		var form = document.getElementById('lite-atc-form');
 		var toast = document.getElementById('lite-toast');
 		var toastMsg = document.getElementById('lite-toast-msg');
@@ -566,24 +569,8 @@ while ( have_posts() ) :
 			toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 5000); // Increased to 5s to give time to click
 		}
 
-		// Intercept form submit for AJAX-style feel (optional progressive enhancement)
-		form.addEventListener('submit', function(e) {
-			var btn = document.getElementById('lite-atc-btn');
-			btn.style.opacity = '0.7';
-			btn.disabled = true;
-			// Let the form submit naturally — toast shown on redirect return if needed
-			// OR submit via fetch for no-reload experience:
-			e.preventDefault();
-			var data = new FormData(form);
-			fetch(window.location.href, { method: 'POST', body: data })
-				.then(function() {
-					btn.style.opacity = '1';
-					btn.disabled = false;
-					showToast('<?php echo esc_js( __( 'Added to cart!', 'bluu-lite-ecommerce' ) ); ?>');
-				})
-				.catch(function() {
-					form.submit(); // fallback
-				});
+		form.addEventListener('lite:added-to-cart', function() {
+			showToast('<?php echo esc_js( __( 'Added to cart!', 'bluu-lite-ecommerce' ) ); ?>');
 		});
 	})();
 	</script>
