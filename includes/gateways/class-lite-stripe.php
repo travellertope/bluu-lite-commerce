@@ -27,12 +27,20 @@ class Lite_eCommerce_Stripe {
 			$product = get_post( $item['product_id'] );
 			$price   = get_post_meta( $item['product_id'], '_lite_price', true );
 
+			$name = $product->post_title;
+			if ( class_exists( 'Lite_eCommerce_Checkout' ) ) {
+				$options_display = html_entity_decode( wp_strip_all_tags( Lite_eCommerce_Checkout::format_item_options( $item ) ), ENT_QUOTES, 'UTF-8' );
+				if ( $options_display ) {
+					$name .= ' (' . $options_display . ')';
+				}
+			}
+
 			$line_items[] = array(
 				'price_data' => array(
 					'currency'     => 'gbp',
 					'unit_amount'  => intval( floatval( $price ) * 100 ),
 					'product_data' => array(
-						'name' => $product->post_title,
+						'name' => $name,
 					),
 				),
 				'quantity' => intval( $item['quantity'] ),

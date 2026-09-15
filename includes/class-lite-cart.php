@@ -23,6 +23,10 @@ class Lite_eCommerce_Cart {
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_floating_cart_script' ) );
 		add_action( 'wp_ajax_lite_add_to_cart', array( __CLASS__, 'ajax_add_to_cart' ) );
 		add_action( 'wp_ajax_nopriv_lite_add_to_cart', array( __CLASS__, 'ajax_add_to_cart' ) );
+		add_action( 'wp_ajax_lite_update_cart_quantity', array( __CLASS__, 'ajax_update_cart_quantity' ) );
+		add_action( 'wp_ajax_nopriv_lite_update_cart_quantity', array( __CLASS__, 'ajax_update_cart_quantity' ) );
+		add_action( 'wp_ajax_lite_remove_from_cart', array( __CLASS__, 'ajax_remove_from_cart' ) );
+		add_action( 'wp_ajax_nopriv_lite_remove_from_cart', array( __CLASS__, 'ajax_remove_from_cart' ) );
 	}
 
 	/**
@@ -71,7 +75,7 @@ class Lite_eCommerce_Cart {
 (function() {
 	function updateFloatingCart(count, total, cartUrl) {
 		var btn = document.getElementById('lite-floating-cart');
-		if (!btn) return;
+		if (!btn || count === null || count === undefined || total === null || total === undefined) return;
 
 		if (cartUrl) {
 			btn.setAttribute('href', cartUrl);
@@ -94,23 +98,18 @@ class Lite_eCommerce_Cart {
 		btn.classList.add('lite-floating-cart-bump');
 	}
 
-	document.addEventListener('submit', function(e) {
-		var form = e.target;
-		if (!form.querySelector) return;
+	// Exposed so other inline scripts on the page (e.g. the checkout page's
+	// own quantity-update AJAX) can keep the floating cart live too.
+	window.liteUpdateFloatingCart = updateFloatingCart;
 
-		var actionField = form.querySelector('input[name="lite_action"][value="add_to_cart"]');
-		if (!actionField) return;
-
-		e.preventDefault();
-
+	function submitViaAjax(form, ajaxAction, onSuccess) {
 		var submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
-		var originalText = submitBtn ? submitBtn.textContent : '';
 		if (submitBtn) {
 			submitBtn.disabled = true;
 		}
 
 		var formData = new FormData(form);
-		formData.set('action', 'lite_add_to_cart');
+		formData.set('action', ajaxAction);
 
 		fetch(liteCartData.ajaxUrl, {
 			method: 'POST',
@@ -120,7 +119,7 @@ class Lite_eCommerce_Cart {
 		.then(function(response) { return response.json(); })
 		.then(function(json) {
 			if (json && json.success && json.data) {
-				updateFloatingCart(json.data.count, json.data.total, json.data.cart_url);
+				onSuccess(json.data);
 			} else {
 				form.submit();
 			}
@@ -131,9 +130,52 @@ class Lite_eCommerce_Cart {
 		.finally(function() {
 			if (submitBtn) {
 				submitBtn.disabled = false;
-				submitBtn.textContent = originalText;
 			}
 		});
+	}
+
+	function replaceCartCard(html) {
+		if (!html) return;
+		var current = document.getElementById('lite-cart-items-card');
+		if (!current) return;
+
+		var wrapper = document.createElement('div');
+		wrapper.innerHTML = html;
+		var updated = wrapper.querySelector('#lite-cart-items-card');
+		if (updated) {
+			current.replaceWith(updated);
+		}
+	}
+
+	document.addEventListener('submit', function(e) {
+		var form = e.target;
+		if (!form.querySelector) return;
+
+		if (form.querySelector('input[name="lite_action"][value="add_to_cart"]')) {
+			e.preventDefault();
+			submitViaAjax(form, 'lite_add_to_cart', function(data) {
+				updateFloatingCart(data.count, data.total, data.cart_url);
+			});
+			return;
+		}
+
+		if (form.querySelector('input[name="lite_action"][value="update_cart_quantity"]')) {
+			e.preventDefault();
+			submitViaAjax(form, 'lite_update_cart_quantity', function(data) {
+				replaceCartCard(data.html);
+				updateFloatingCart(data.count, data.total, data.cart_url);
+			});
+			return;
+		}
+
+		if (form.querySelector('input[name="lite_action"][value="remove_from_cart"]')) {
+			e.preventDefault();
+			submitViaAjax(form, 'lite_remove_from_cart', function(data) {
+				replaceCartCard(data.html);
+				updateFloatingCart(data.count, data.total, data.cart_url);
+			});
+			return;
+		}
 	});
 })();
 JS;
@@ -163,6 +205,60 @@ JS;
 
 		wp_send_json_success(
 			array(
+				'count'    => self::get_item_count(),
+				'total'    => number_format( self::get_total(), 2, '.', '' ),
+				'cart_url' => self::get_cart_url(),
+			)
+		);
+	}
+
+	/**
+	 * AJAX handler: update a cart item's quantity (or remove it if set to 0).
+	 */
+	public static function ajax_update_cart_quantity() {
+		$index    = isset( $_POST['cart_index'] ) ? intval( $_POST['cart_index'] ) : -1;
+		$quantity = isset( $_POST['lite_quantity'] ) ? intval( $_POST['lite_quantity'] ) : 0;
+
+		if ( $index < 0 || ! isset( $_POST['lite_update_cart_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['lite_update_cart_nonce'] ) ), 'lite_update_' . $index ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'bluu-lite-ecommerce' ) ), 400 );
+		}
+
+		if ( $quantity > 0 ) {
+			$cart = self::get_cart();
+			if ( isset( $cart[ $index ] ) ) {
+				$cart[ $index ]['quantity'] = $quantity;
+				self::set_cart( $cart );
+			}
+		} else {
+			self::remove_from_cart( $index );
+		}
+
+		self::send_cart_card_response();
+	}
+
+	/**
+	 * AJAX handler: remove an item from the cart.
+	 */
+	public static function ajax_remove_from_cart() {
+		$index = isset( $_POST['cart_index'] ) ? intval( $_POST['cart_index'] ) : -1;
+
+		if ( $index < 0 || ! isset( $_POST['lite_remove_from_cart_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['lite_remove_from_cart_nonce'] ) ), 'lite_remove_' . $index ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'bluu-lite-ecommerce' ) ), 400 );
+		}
+
+		self::remove_from_cart( $index );
+
+		self::send_cart_card_response();
+	}
+
+	/**
+	 * Send the standard JSON response for a cart mutation: the re-rendered
+	 * cart items card plus fresh totals for the floating cart button.
+	 */
+	private static function send_cart_card_response() {
+		wp_send_json_success(
+			array(
+				'html'     => Lite_eCommerce_Checkout::render_cart_card(),
 				'count'    => self::get_item_count(),
 				'total'    => number_format( self::get_total(), 2, '.', '' ),
 				'cart_url' => self::get_cart_url(),
