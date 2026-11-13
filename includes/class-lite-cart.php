@@ -586,7 +586,12 @@ JS;
 		if ( session_id() ) {
 			unset( $_SESSION[ self::SESSION_KEY ] );
 		}
-		
+
+		// Clear the in-memory superglobal so get_cart() doesn't re-read the
+		// stale cookie value later in the same request (setcookie() only
+		// affects the next response, not the current $_COOKIE array).
+		unset( $_COOKIE[ self::SESSION_KEY ] );
+
 		if ( ! headers_sent() ) {
 			setcookie( self::SESSION_KEY, '', time() - 3600, COOKIEPATH, COOKIE_DOMAIN );
 		}
