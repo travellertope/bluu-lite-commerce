@@ -278,20 +278,27 @@ class Lite_eCommerce_Checkout {
 	}
 
 	/**
-	 * Render cart shortcode.
+	 * Render the cart items card (table + totals), or the empty-cart message.
+	 *
+	 * Extracted from render_cart() so it can also be re-rendered and swapped
+	 * in via AJAX after a quantity update or item removal, keeping it (and
+	 * the floating cart button) live without a full page reload.
 	 */
-	public static function render_cart() {
+	public static function render_cart_card() {
 		$cart = Lite_eCommerce_Cart::get_cart();
 
-		if ( empty( $cart ) ) {
-			return '<div class="lite-ecommerce-page"><p>' . esc_html__( 'Your cart is currently empty.', 'bluu-lite-ecommerce' ) . '</p></div>';
-		}
-
 		ob_start();
-		echo self::get_shared_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+
+		if ( empty( $cart ) ) {
+			?>
+			<div id="lite-cart-items-card">
+				<p><?php esc_html_e( 'Your cart is currently empty.', 'bluu-lite-ecommerce' ); ?></p>
+			</div>
+			<?php
+			return ob_get_clean();
+		}
 		?>
-		<div class="lite-ecommerce-page">
-			<h1 class="lite-ecommerce-title"><?php esc_html_e( 'Shopping Cart', 'bluu-lite-ecommerce' ); ?></h1>
+		<div id="lite-cart-items-card">
 			<div class="lite-ecommerce-card">
 				<table class="lite-table">
 					<thead>
@@ -304,7 +311,7 @@ class Lite_eCommerce_Checkout {
 						</tr>
 					</thead>
 					<tbody>
-						<?php foreach ( $cart as $index => $item ) : 
+						<?php foreach ( $cart as $index => $item ) :
 							$product = get_post( $item['product_id'] );
 							if ( ! $product ) continue;
 							$price = floatval( get_post_meta( $item['product_id'], '_lite_price', true ) );
@@ -326,7 +333,7 @@ class Lite_eCommerce_Checkout {
 							</td>
 							<td><?php echo '£' . number_format( $price, 2 ); ?></td>
 							<td>
-								<form method="post" action="" style="display:flex; align-items:center; gap:8px;">
+								<form method="post" action="" class="lite-cart-update-form" style="display:flex; align-items:center; gap:8px;">
 									<input type="hidden" name="lite_action" value="update_cart_quantity">
 									<input type="hidden" name="cart_index" value="<?php echo esc_attr( $index ); ?>">
 									<?php wp_nonce_field( 'lite_update_' . $index, 'lite_update_cart_nonce' ); ?>
@@ -336,7 +343,7 @@ class Lite_eCommerce_Checkout {
 							</td>
 							<td><?php echo '£' . number_format( $subtotal, 2 ); ?></td>
 							<td>
-								<form method="post" action="">
+								<form method="post" action="" class="lite-cart-remove-form">
 									<input type="hidden" name="lite_action" value="remove_from_cart">
 									<input type="hidden" name="cart_index" value="<?php echo esc_attr( $index ); ?>">
 									<?php wp_nonce_field( 'lite_remove_' . $index, 'lite_remove_from_cart_nonce' ); ?>
@@ -360,6 +367,21 @@ class Lite_eCommerce_Checkout {
 					<a href="<?php echo esc_url( $checkout_url ); ?>" class="lite-btn"><?php esc_html_e( 'Proceed to Checkout', 'bluu-lite-ecommerce' ); ?> &rarr;</a>
 				</div>
 			</div>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Render cart shortcode.
+	 */
+	public static function render_cart() {
+		ob_start();
+		echo self::get_shared_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		?>
+		<div class="lite-ecommerce-page">
+			<h1 class="lite-ecommerce-title"><?php esc_html_e( 'Shopping Cart', 'bluu-lite-ecommerce' ); ?></h1>
+			<?php echo self::render_cart_card(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 		</div>
 		<?php
 		return ob_get_clean();
@@ -395,7 +417,15 @@ class Lite_eCommerce_Checkout {
 				$cart = array_values( $cart );
 				Lite_eCommerce_Cart::set_cart( $cart );
 			}
-			
+
+			// Expose live cart totals via headers so the floating cart button
+			// can update itself without parsing the HTML fragment below.
+			if ( ! headers_sent() ) {
+				header( 'X-Lite-Cart-Count: ' . Lite_eCommerce_Cart::get_item_count() );
+				header( 'X-Lite-Cart-Total: ' . number_format( Lite_eCommerce_Cart::get_total(), 2, '.', '' ) );
+				header( 'X-Lite-Cart-Url: ' . Lite_eCommerce_Cart::get_cart_url() );
+			}
+
 			// Render just the table and exit
 			echo self::render_order_summary_table(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 			exit;
@@ -738,7 +768,16 @@ class Lite_eCommerce_Checkout {
 							method: 'POST',
 							body: formData
 						})
-						.then(response => response.text())
+						.then(function(response) {
+							if (window.liteUpdateFloatingCart) {
+								window.liteUpdateFloatingCart(
+									response.headers.get('X-Lite-Cart-Count'),
+									response.headers.get('X-Lite-Cart-Total'),
+									response.headers.get('X-Lite-Cart-Url')
+								);
+							}
+							return response.text();
+						})
 						.then(html => {
 							container.innerHTML = html;
 							container.style.opacity = '1';

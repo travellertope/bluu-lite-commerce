@@ -401,16 +401,57 @@ class Lite_eCommerce_Product {
 			$price = 0;
 		}
 
+		$options = self::get_product_options( $product_id );
+
 		ob_start();
 		?>
 		<form method="post" action="">
 			<input type="hidden" name="lite_action" value="add_to_cart">
 			<input type="hidden" name="lite_product_id" value="<?php echo esc_attr( $product_id ); ?>">
 			<?php wp_nonce_field( 'lite_add_to_cart_' . $product_id, 'lite_add_to_cart_nonce' ); ?>
+
+			<?php if ( ! empty( $options ) ) : ?>
+				<?php foreach ( $options as $opt ) : ?>
+					<div class="lite-option-group">
+						<label for="lite-shortcode-opt-<?php echo esc_attr( $opt['id'] . '-' . $product_id ); ?>">
+							<?php echo esc_html( $opt['label'] ); ?>
+						</label>
+						<?php if ( 'select' === $opt['type'] && ! empty( $opt['values'] ) ) : ?>
+							<select
+								name="lite_options[<?php echo esc_attr( $opt['id'] ); ?>]"
+								id="lite-shortcode-opt-<?php echo esc_attr( $opt['id'] . '-' . $product_id ); ?>"
+								class="lite-option-select"
+								required
+							>
+								<option value=""><?php
+									/* translators: %s: option label */
+									printf( esc_html__( 'Select %s...', 'bluu-lite-ecommerce' ), esc_html( $opt['label'] ) );
+								?></option>
+								<?php foreach ( $opt['values'] as $val ) : ?>
+									<option value="<?php echo esc_attr( $val ); ?>"><?php echo esc_html( $val ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						<?php else : ?>
+							<input
+								type="text"
+								name="lite_options[<?php echo esc_attr( $opt['id'] ); ?>]"
+								id="lite-shortcode-opt-<?php echo esc_attr( $opt['id'] . '-' . $product_id ); ?>"
+								class="lite-option-text"
+								placeholder="<?php
+									/* translators: %s: option label */
+									printf( esc_attr__( 'Enter %s...', 'bluu-lite-ecommerce' ), esc_attr( $opt['label'] ) );
+								?>"
+								required
+							>
+						<?php endif; ?>
+					</div>
+				<?php endforeach; ?>
+			<?php endif; ?>
+
 			<button type="submit" class="lite-add-to-cart-button">
-				<?php 
+				<?php
 				/* translators: %s: product price */
-				printf( esc_html__( 'Add to Cart - £%s', 'bluu-lite-ecommerce' ), number_format( $price, 2 ) ); 
+				printf( esc_html__( 'Add to Cart - £%s', 'bluu-lite-ecommerce' ), number_format( $price, 2 ) );
 				?>
 			</button>
 		</form>
